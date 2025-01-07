@@ -12,6 +12,13 @@ import {
   ToolResource
 } from '../types/index.js';
 import axios from 'axios';
+import type { AxiosError } from 'axios';
+
+interface PostmanErrorResponse {
+  error?: {
+    message?: string;
+  };
+}
 
 // Schema for listing tool resources
 const ListToolResourcesRequestSchema = z.object({
@@ -122,18 +129,19 @@ export class ToolHandler {
           content: response.content,
           isError: response.isError,
         };
-      } catch (error) {
+      } catch (error: unknown) {
         if (error instanceof McpError) {
           throw error;
         }
         if (axios.isAxiosError(error)) {
+          const axiosError = error as AxiosError<PostmanErrorResponse>;
           return {
             _meta: {},
             tools: [],
             content: [
               {
                 type: 'text',
-                text: `Postman API error: ${error.response?.data?.error?.message || error.message}`,
+                text: `Postman API error: ${axiosError.response?.data?.error?.message || axiosError.message}`,
               },
             ],
             isError: true,

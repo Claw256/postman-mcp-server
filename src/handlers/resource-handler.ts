@@ -1,12 +1,20 @@
 import { ListResourcesRequestSchema, ReadResourceRequestSchema, ListResourceTemplatesRequestSchema, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import axios from 'axios';
+import type { AxiosError, AxiosResponse } from 'axios';
 import { BaseResourceHandler, Resource, ResourceTemplate, ResourceContent } from '../types/resource.js';
+
+interface PostmanErrorResponse {
+  error?: {
+    message?: string;
+  };
+}
 
 /**
  * Handles resource requests for Postman API resources
  */
 export class McpResourceHandler extends BaseResourceHandler {
+  // Rest of the code remains the same until the readResource method's catch block
   // Set of valid direct resource types (no parameters)
   private static readonly DIRECT_RESOURCES = new Set([
     'workspaces',
@@ -349,9 +357,10 @@ export class McpResourceHandler extends BaseResourceHandler {
         mimeType: 'application/json',
         text: JSON.stringify(response.data, null, 2)
       }];
-    } catch (error) {
+    } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
-        if (error.response?.status === 429) {
+        const axiosError = error as AxiosError<PostmanErrorResponse>;
+        if (axiosError.response?.status === 429) {
           throw new McpError(
             ErrorCode.InvalidRequest,
             'Postman API rate limit exceeded'
@@ -359,7 +368,7 @@ export class McpResourceHandler extends BaseResourceHandler {
         }
         throw new McpError(
           ErrorCode.InternalError,
-          `Postman API error: ${error.response?.data?.error?.message || error.message}`
+          `Postman API error: ${axiosError.response?.data?.error?.message || axiosError.message}`
         );
       }
       throw error;
@@ -383,7 +392,7 @@ export class McpResourceHandler extends BaseResourceHandler {
     this.requestCount++;
   }
 
-  private async makePostmanRequest(endpoint: string) {
+  private async makePostmanRequest(endpoint: string): Promise<AxiosResponse> {
     if (!process.env.POSTMAN_API_KEY) {
       throw new McpError(ErrorCode.InternalError, 'Postman API key not configured');
     }

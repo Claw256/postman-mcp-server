@@ -2,7 +2,8 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
+import type { InternalAxiosRequestConfig, AxiosResponse } from 'axios';
 import {
   WorkspaceTools,
   EnvironmentTools,
@@ -83,27 +84,31 @@ export class PostmanAPIServer {
 
     // Add response interceptor for error handling
     this.axiosInstance.interceptors.response.use(
-      (response) => response,
-      async (error: AxiosError) => {
-        if (error.response) {
-          // API responded with error status
-          throw new McpError(
-            ErrorCode.InternalError,
-            `Postman API error: ${error.response.status} - ${JSON.stringify(error.response.data)}`
-          );
-        } else if (error.request) {
-          // Request made but no response received
-          throw new McpError(
-            ErrorCode.InternalError,
-            'No response received from Postman API'
-          );
-        } else {
-          // Error in request setup
-          throw new McpError(
-            ErrorCode.InternalError,
-            `Request setup error: ${error.message}`
-          );
+      (response: AxiosResponse) => response,
+      async (error: unknown) => {
+        if (axios.isAxiosError(error)) {
+          if (error.response) {
+            // API responded with error status
+            throw new McpError(
+              ErrorCode.InternalError,
+              `Postman API error: ${error.response.status} - ${JSON.stringify(error.response.data)}`
+            );
+          } else if (error.request) {
+            // Request made but no response received
+            throw new McpError(
+              ErrorCode.InternalError,
+              'No response received from Postman API'
+            );
+          } else {
+            // Error in request setup
+            throw new McpError(
+              ErrorCode.InternalError,
+              `Request setup error: ${error.message}`
+            );
+          }
         }
+        // Re-throw non-axios errors
+        throw error;
       }
     );
 

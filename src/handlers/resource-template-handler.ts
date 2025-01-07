@@ -1,6 +1,13 @@
 import { ListResourceTemplatesRequestSchema, ReadResourceRequestSchema, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import axios from 'axios';
+import type { AxiosError } from 'axios';
+
+interface PostmanErrorResponse {
+  error?: {
+    message?: string;
+  };
+}
 
 /**
  * Handles resource template requests for dynamic Postman API resources
@@ -255,10 +262,14 @@ export class ResourceTemplateHandler {
             throw new McpError(ErrorCode.InvalidRequest, `Unknown resource type: ${resourceType}`);
         }
 
+        if (!process.env.POSTMAN_API_KEY) {
+          throw new McpError(ErrorCode.InternalError, 'Postman API key not configured');
+        }
+
         // Make request to Postman API
         const response = await axios.get(`https://api.getpostman.com${endpoint}`, {
           headers: {
-            'X-Api-Key': process.env.POSTMAN_API_KEY!,
+            'X-Api-Key': process.env.POSTMAN_API_KEY,
           },
         });
 
@@ -271,11 +282,12 @@ export class ResourceTemplateHandler {
             },
           ],
         };
-      } catch (error) {
+      } catch (error: unknown) {
         if (axios.isAxiosError(error)) {
+          const axiosError = error as AxiosError<PostmanErrorResponse>;
           throw new McpError(
             ErrorCode.InternalError,
-            `Postman API error: ${error.response?.data?.error?.message || error.message}`
+            `Postman API error: ${axiosError.response?.data?.error?.message || axiosError.message}`
           );
         }
         throw error;
